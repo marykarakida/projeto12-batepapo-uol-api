@@ -46,7 +46,7 @@ app.get("/messages", (req, res) => {
     const { limit } = req.query.limit;
     const { user } = req.headers;
 
-    const end = limit * (-1);
+    const start = Number(limit) * (-1);
 
     const allowedMessages = messages.filter(message => {
         const isNotPrivateMessageFromUser = message.type === "private_message" && message.from !== user;
@@ -55,7 +55,22 @@ app.get("/messages", (req, res) => {
         return (!isNotPrivateMessageFromUser || !isNotPrivateMessageToUser);
     });
 
-    res.send(allowedMessages.slice(end));
+    res.send(allowedMessages.slice(start));
+});
+
+app.post("/status", (req, res) => {
+    const { user } = req.headers;
+
+    const participant = participants.find(participant => participant.name === user);
+
+    if (!participant) {
+        res.sendStatus(404);
+        return;
+    }
+
+    participant.lastStatus = Date.now();
+
+    res.sendStatus(200);
 })
 
 app.listen(5000, () => {
