@@ -3,8 +3,9 @@ import cors from "cors";
 import dayjs from "dayjs";
 
 const app = express();
-const PORT = 5000;
 
+const PORT = 5000;
+const UPDATE_PATICIPANTS_TIME = 15000;
 const participants = [];
 const messages = [];
 
@@ -29,7 +30,7 @@ app.post("/participants", (req, res) => {
 
 app.get("/participants", (req, res) => {
     res.send(participants);
-})
+});
 
 app.post("/messages", (req, res) => {
     const { user } = req.headers;
@@ -40,7 +41,7 @@ app.post("/messages", (req, res) => {
     messages.push({ from: user, to, text, type, time: dayjs().format("HH:mm:ss") });
 
     res.sendStatus(201);
-})
+});
 
 app.get("/messages", (req, res) => {
     const { limit } = req.query.limit;
@@ -71,8 +72,23 @@ app.post("/status", (req, res) => {
     participant.lastStatus = Date.now();
 
     res.sendStatus(200);
-})
+});
 
 app.listen(5000, () => {
     console.log("Listening on port", PORT);
 });
+
+setInterval(removerParticipantesInativos, UPDATE_PATICIPANTS_TIME);
+
+function removerParticipantesInativos() {
+    const time = Date.now();
+
+    for (let i = 0 ; i < participants.length ; i ++) {
+        const participant = participants[i];
+
+        if (time - participant.lastStatus > 10000) {
+            participants.splice(i, 1);
+            messages.push({from: participant.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: dayjs().format("HH:mm:ss")})
+        }
+    }
+}
