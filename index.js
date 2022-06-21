@@ -25,8 +25,12 @@ app.post("/participants", (req, res) => {
     messages.push({ from: name, to: 'Todos', text: 'entra na sala...', type: 'status', time: dayjs().format("HH:mm:ss") });
 
     res.sendStatus(201);
+});
+
+app.get("/participants", (req, res) => {
+    res.send(participants);
 })
 
 app.listen(5000, () => {
     console.log("Listening on port", PORT);
-})
+});
