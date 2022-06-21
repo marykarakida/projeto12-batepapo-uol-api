@@ -31,6 +31,15 @@ app.get("/participants", (req, res) => {
     res.send(participants);
 })
 
+app.post("/messages", (req, res) => {
+    const { user } = req.headers;
+    const { to, text, type} = req.body;
+
+    messages.push({ from: user, to, text, type, time: dayjs().format("HH:mm:ss") });
+
+    res.sendStatus(201);
+})
+
 app.listen(5000, () => {
     console.log("Listening on port", PORT);
 });
