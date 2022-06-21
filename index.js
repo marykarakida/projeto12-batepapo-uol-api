@@ -1,16 +1,17 @@
-import express from "express";
 import cors from "cors";
 import dayjs from "dayjs";
+import dotenv from "dotenv";
+import express from "express";
+
+dotenv.config();
 
 const app = express();
+app.use(express.json());
+app.use(cors());
 
-const PORT = 5000;
 const UPDATE_PATICIPANTS_TIME = 15000;
 const participants = [];
 const messages = [];
-
-app.use(express.json());
-app.use(cors());
 
 app.post("/participants", (req, res) => {
     const { name } = req.body;
@@ -74,8 +75,8 @@ app.post("/status", (req, res) => {
     res.sendStatus(200);
 });
 
-app.listen(5000, () => {
-    console.log("Listening on port", PORT);
+app.listen(process.env.PORT, () => {
+    console.log("Listening on port", process.env.PORT);
 });
 
 setInterval(removerParticipantesInativos, UPDATE_PATICIPANTS_TIME);
