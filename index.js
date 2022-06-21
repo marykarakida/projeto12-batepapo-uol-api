@@ -35,9 +35,27 @@ app.post("/messages", (req, res) => {
     const { user } = req.headers;
     const { to, text, type} = req.body;
 
+    // validate format using joi
+
     messages.push({ from: user, to, text, type, time: dayjs().format("HH:mm:ss") });
 
     res.sendStatus(201);
+})
+
+app.get("/messages", (req, res) => {
+    const { limit } = req.query.limit;
+    const { user } = req.headers;
+
+    const end = limit * (-1);
+
+    const allowedMessages = messages.filter(message => {
+        const isNotPrivateMessageFromUser = message.type === "private_message" && message.from !== user;
+        const isNotPrivateMessageToUser = message.type === "private_message" && message.to !== user;
+        
+        return (!isNotPrivateMessageFromUser || !isNotPrivateMessageToUser);
+    });
+
+    res.send(allowedMessages.slice(end));
 })
 
 app.listen(5000, () => {
