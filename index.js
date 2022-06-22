@@ -142,6 +142,39 @@ app.delete("/messages/:ID", async (req, res) => {
     }
 })
 
+app.put("/messages/:ID", async (req, res) => {
+    const { ID } = req.params;
+    const { user } = req.headers;
+    const { to, text, type } = req.body;
+
+    try {
+        const dbMessages = db.collection("messages");
+        const message = await dbMessages.findOne({ _id: ObjectId(ID) });
+
+        if (!message) {
+            res.sendStatus(404);
+            return;
+        }
+
+        if (message.from !== user) {
+            res.sendStatus(401);
+            return;
+        }
+
+        await dbMessages.updateOne(
+            { _id: ObjectId(ID) }, 
+            { 
+                $set: { text: text }
+            }
+        )
+
+        res.sendStatus(200);
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
+    }
+})
+
 app.post("/status", async (req, res) => {
     const { user } = req.headers;
 
