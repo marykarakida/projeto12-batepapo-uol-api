@@ -2,6 +2,7 @@ import cors from "cors";
 import dayjs from "dayjs";
 import dotenv from "dotenv";
 import express from "express";
+import { MongoClient } from "mongodb";
 
 dotenv.config();
 
@@ -9,70 +10,135 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const UPDATE_PATICIPANTS_TIME = 15000;
-const participants = [];
-const messages = [];
+let db;
+const mongoClient = new MongoClient("mongodb://127.0.0.1:27017");
+mongoClient.connect().then(() => {
+	db = mongoClient.db("bate_papo_uol");
+});
 
-app.post("/participants", (req, res) => {
+const UPDATE_PATICIPANTS_TIME = 15000;
+
+app.post("/participants", async (req, res) => {
     const { name } = req.body;
 
-    // validate format using joi
+    try {
+        const dbParticipants = db.collection("participants");
+        const dbMessages = db.collection("messages");
 
-    if (participants.some((participant) => participant.name === name)) {
-        res.sendStatus(409);
-        return;
+        // validate format using joi
+
+        const participant = await dbParticipants.findOne({ name: name });
+
+        if (participant) {
+            res.sendStatus(409);
+            return;
+        }
+
+        await dbParticipants.insertOne({ 
+            name, 
+            lastStatus: Date.now() 
+        });
+        await dbMessages.insertOne({ 
+            from: name, 
+            to: 'Todos', 
+            text: 'entra na sala...', 
+            type: 'status', 
+            time: dayjs().format("HH:mm:ss") 
+        })
+
+        res.sendStatus(201);
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
     }
 
-    participants.push({ name, lastStatus: Date.now() });
-    messages.push({ from: name, to: 'Todos', text: 'entra na sala...', type: 'status', time: dayjs().format("HH:mm:ss") });
-
-    res.sendStatus(201);
 });
 
-app.get("/participants", (req, res) => {
-    res.send(participants);
+app.get("/participants", async (req, res) => {
+    try {
+        const dbParticipants = db.collection("participants");
+        const participants = await dbParticipants.find().toArray();
+
+        res.send(participants);
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
+    }
 });
 
-app.post("/messages", (req, res) => {
+app.post("/messages", async (req, res) => {
     const { user } = req.headers;
     const { to, text, type} = req.body;
 
-    // validate format using joi
+    try {
+        const dbMessages = db.collection("messages");
 
-    messages.push({ from: user, to, text, type, time: dayjs().format("HH:mm:ss") });
+        // validate format using joi
 
-    res.sendStatus(201);
+        await dbMessages.insertOne({ 
+            from: user, 
+            to, 
+            text, 
+            type, 
+            time: dayjs().format("HH:mm:ss") 
+        });
+
+        res.sendStatus(201);
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
+    }
+
 });
 
-app.get("/messages", (req, res) => {
-    const { limit } = req.query.limit;
+app.get("/messages", async (req, res) => {
+    const { limit } = req.query;
     const { user } = req.headers;
 
     const start = Number(limit) * (-1);
 
-    const allowedMessages = messages.filter(message => {
-        const isNotPrivateMessageFromUser = message.type === "private_message" && message.from !== user;
-        const isNotPrivateMessageToUser = message.type === "private_message" && message.to !== user;
-        
-        return (!isNotPrivateMessageFromUser || !isNotPrivateMessageToUser);
-    });
+    try {
+        const dbMessages = db.collection("messages");
+        const messages = await dbMessages.find().toArray();
 
-    res.send(allowedMessages.slice(start));
+        const allowedMessages = messages.filter(message => {
+            const isNotPrivateMessageFromUser = message.type === "private_message" && message.from !== user;
+            const isNotPrivateMessageToUser = message.type === "private_message" && message.to !== user;
+            
+            return (!isNotPrivateMessageFromUser || !isNotPrivateMessageToUser);
+        }).slice(start);
+
+        res.send(allowedMessages);
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
+    }
 });
 
-app.post("/status", (req, res) => {
+app.post("/status", async (req, res) => {
     const { user } = req.headers;
 
-    const participant = participants.find(participant => participant.name === user);
+    try {
+        const dbParticipants = db.collection("participants");
+        const participant = await dbParticipants.findOne({ name: user });
 
-    if (!participant) {
-        res.sendStatus(404);
-        return;
+        if (!participant) {
+            res.sendStatus(404);
+            return;
+        }
+
+        await dbParticipants.updateOne(
+            { name: user }, 
+            { 
+                $set: { lastStatus: Date.now() }
+            }
+        )
+
+        res.sendStatus(200);
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
     }
-
-    participant.lastStatus = Date.now();
-
-    res.sendStatus(200);
 });
 
 app.listen(process.env.PORT, () => {
@@ -81,15 +147,26 @@ app.listen(process.env.PORT, () => {
 
 setInterval(removerParticipantesInativos, UPDATE_PATICIPANTS_TIME);
 
-function removerParticipantesInativos() {
+async function removerParticipantesInativos() {
     const time = Date.now();
+
+    const dbParticipants = db.collection("participants");
+    const dbMessages = db.collection("messages");
+
+    const participants = await dbParticipants.find().toArray();
 
     for (let i = 0 ; i < participants.length ; i ++) {
         const participant = participants[i];
 
         if (time - participant.lastStatus > 10000) {
-            participants.splice(i, 1);
-            messages.push({from: participant.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: dayjs().format("HH:mm:ss")})
+            dbParticipants.deleteOne( { name: participant.name } );
+            dbMessages.insertOne({ 
+                from: participant.name, 
+                to: 'Todos', 
+                text: 'sai da sala...', 
+                type: 'status', 
+                time: dayjs().format("HH:mm:ss") 
+            })
         }
     }
 }
