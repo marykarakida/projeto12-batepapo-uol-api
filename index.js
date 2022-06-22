@@ -2,7 +2,7 @@ import cors from "cors";
 import dayjs from "dayjs";
 import dotenv from "dotenv";
 import express from "express";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 
 dotenv.config();
 
@@ -115,6 +115,33 @@ app.get("/messages", async (req, res) => {
     }
 });
 
+app.delete("/messages/:ID", async (req, res) => {
+    const { user } = req.headers;
+    const { ID } = req.params;
+
+    try {
+        const dbMessages = db.collection("messages");
+        const message = await dbMessages.findOne({ _id: ObjectId(ID) });
+
+        if (!message) {
+            res.sendStatus(404);
+            return;
+        }
+
+        if (message.from !== user) {
+            res.sendStatus(401);
+            return;
+        }
+
+        await dbMessages.deleteOne( { _id: ObjectId(ID) } );
+
+        res.sendStatus(200);
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
+    }
+})
+
 app.post("/status", async (req, res) => {
     const { user } = req.headers;
 
@@ -139,10 +166,6 @@ app.post("/status", async (req, res) => {
         console.error(err);
         res.sendStatus(500);
     }
-});
-
-app.listen(process.env.PORT, () => {
-    console.log("Listening on port", process.env.PORT);
 });
 
 setInterval(removerParticipantesInativos, UPDATE_PATICIPANTS_TIME);
@@ -170,3 +193,7 @@ async function removerParticipantesInativos() {
         }
     }
 }
+
+app.listen(process.env.PORT, () => {
+    console.log("Listening on port", process.env.PORT);
+});
