@@ -4,6 +4,9 @@ import dotenv from "dotenv";
 import express from "express";
 import { MongoClient, ObjectId } from "mongodb";
 
+import { participantSchema } from "./src/models/participant.js";
+import { messageSchema, validateMessageSender } from "./src/models/message.js";
+
 dotenv.config();
 
 const app = express();
@@ -11,7 +14,7 @@ app.use(express.json());
 app.use(cors());
 
 let db;
-const mongoClient = new MongoClient("mongodb://127.0.0.1:27017");
+const mongoClient = new MongoClient(process.env.MONGO_URI);
 mongoClient.connect().then(() => {
 	db = mongoClient.db("bate_papo_uol");
 });
@@ -25,12 +28,17 @@ app.post("/participants", async (req, res) => {
         const dbParticipants = db.collection("participants");
         const dbMessages = db.collection("messages");
 
-        // validate format using joi
-
         const participant = await dbParticipants.findOne({ name: name });
+        
+        const validation = participantSchema.validate(name, { abortEarly: false });
 
         if (participant) {
             res.sendStatus(409);
+            return;
+        }
+
+        if (validation.error) {
+            res.sendStatus(422);
             return;
         }
 
@@ -68,12 +76,24 @@ app.get("/participants", async (req, res) => {
 
 app.post("/messages", async (req, res) => {
     const { user } = req.headers;
-    const { to, text, type} = req.body;
+    const { to, text, type} = req.body
 
     try {
         const dbMessages = db.collection("messages");
 
-        // validate format using joi
+        const isSenderOnline = await validateMessageSender(db, user, res);
+
+        const messageValidation = messageSchema.validate({
+            from: user,
+            to,
+            text,
+            type
+        }, { abortEarly: false });
+
+        if (!isSenderOnline || messageValidation.error) {
+            res.sendStatus(422);
+            return;
+        }
 
         await dbMessages.insertOne({ 
             from: user, 
@@ -151,13 +171,25 @@ app.put("/messages/:ID", async (req, res) => {
         const dbMessages = db.collection("messages");
         const message = await dbMessages.findOne({ _id: ObjectId(ID) });
 
+        const validation = messageSchema.validate({
+            from: user,
+            to,
+            text,
+            type
+        }, { abortEarly: false });
+
+        if (message.from !== user) {
+            res.sendStatus(401);
+            return;
+        }
+
         if (!message) {
             res.sendStatus(404);
             return;
         }
 
-        if (message.from !== user) {
-            res.sendStatus(401);
+        if (validation.error) {
+            res.sendStatus(422);
             return;
         }
 
