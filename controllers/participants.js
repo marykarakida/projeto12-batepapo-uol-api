@@ -52,7 +52,7 @@ export async function postParticipant (req, res) {
             text: 'entra na sala...', 
             type: 'status', 
             time: dayjs().format("HH:mm:ss") 
-        }
+        };
 
         await participantsCollection.insertOne(newParticipant);
         await messagesCollection.insertOne(newMessage);
@@ -79,15 +79,17 @@ async function removeOfflineParticipants() {
             const participant = participants[i];
     
             if (time - participant.lastStatus > 10000) {
-                collectionParticipants.deleteOne( { name: participant.name } );
-                collectionMessages.insertOne({ 
+                const newMessage = { 
                     from: participant.name, 
                     to: 'Todos', 
                     text: 'sai da sala...', 
                     type: 'status', 
                     time: dayjs().format("HH:mm:ss") 
-                });
-            }
+                };
+
+                collectionParticipants.deleteOne( { name: participant.name } );
+                collectionMessages.insertOne(newMessage);
+            };
         }
     } catch (err) {
         console.error(err);

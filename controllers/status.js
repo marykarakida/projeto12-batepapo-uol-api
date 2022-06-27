@@ -12,12 +12,12 @@ export async function postStatus(req, res) {
         if (!sameNameParticipant) {
             res.status(404).send();
             return;
-        }
+        };
 
         await participantsCollection.updateOne(
             { name: user }, 
             { $set: { lastStatus: Date.now() } }
-        )
+        );
 
         res.status(200).send();
     } catch (err) {

@@ -34,7 +34,7 @@ export async function getMessages(req, res) {
 export async function postMessage(req, res) {
     const { user, to, text, type } = stripHTMLFromMessage({ ...req.body, ...req.headers});
 
-    const newMessage = {
+    const message = {
         from: user,
         to,
         text,
@@ -47,21 +47,23 @@ export async function postMessage(req, res) {
         const participantsCollection = db.collection("participants");
 
         const userOnline = await participantsCollection.findOne({ name: user });
-        const messageValidation = validateMessage(newMessage);
+        const messageValidation = validateMessage(message);
 
         if (!userOnline) {
             res.status(422).send();
             return;
-        } 
+        };
         if (messageValidation.error) {
             res.status(422).send();
             return;
-        }
+        };
 
-        await messagesCollection.insertOne({
-            ...newMessage,
+        const newMessage = {
+            ...message,
             time: dayjs().format("HH:mm:ss")
-        });
+        };
+
+        await messagesCollection.insertOne(newMessage);
 
         res.status(201).send();
     } catch (err) {
@@ -91,7 +93,7 @@ export async function editMessage(req, res) {
         if (!sameIdMessage) {
             res.status(404).send();
             return;
-        }
+        };
         if (sameIdMessage.from !== user) {
             console.log("entrou")
             res.status(401).send();
