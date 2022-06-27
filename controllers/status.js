@@ -6,23 +6,21 @@ export async function postStatus(req, res) {
     try {
         const db = getDb();
         const participantsCollection = db.collection("participants");
-        const participant = await participantsCollection.findOne({ name: user });
+        const sameNameParticipant = await participantsCollection.findOne({ name: user });
 
-        if (!participant) {
-            res.sendStatus(404);
+        if (!sameNameParticipant) {
+            res.status(404).send();
             return;
         }
 
         await participantsCollection.updateOne(
             { name: user }, 
-            { 
-                $set: { lastStatus: Date.now() }
-            }
+            { $set: { lastStatus: Date.now() } }
         )
 
-        res.sendStatus(200);
+        res.status(200).send();
     } catch (err) {
         console.error(err);
-        res.sendStatus(500);
+        res.status(500).send();
     }
 }

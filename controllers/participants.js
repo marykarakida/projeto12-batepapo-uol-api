@@ -2,7 +2,9 @@ import dayjs from "dayjs";
 
 import { getDb } from "../db/db.js";
 
-import { participantSchema } from "../models/participant.js";
+import { validateParticipant } from "../services/validation.js";
+
+const UPDATE_PATICIPANTS_TIME = 15000;
 
 export async function getParticipants(req, res) {
     try {
@@ -25,22 +27,20 @@ export async function postParticipant (req, res) {
         const participantsCollection = db.collection("participants");
         const messagesCollection = db.collection("messages");
 
-        const participant = await participantsCollection.findOne({ name: name });
-        
-        const validation = participantSchema.validate(name, { abortEarly: false });
+        const sameNameParticipant = await participantsCollection.findOne({ name });
+        const participantValidation = validateParticipant({ name });
 
-        if (participant) {
-            res.sendStatus(409);
+        if (sameNameParticipant) {
+            res.status(409).send("User already exists");
+            return;
+        }
+        if (participantValidation.error) {
+            res.status(422).send("Invalid format");
             return;
         }
 
-        if (validation.error) {
-            res.sendStatus(422);
-            return;
-        }
-
-        await participantsCollection.insertOne({ 
-            name, 
+        await participantsCollection.insertOne({
+            name,
             lastStatus: Date.now() 
         });
         await messagesCollection.insertOne({ 
@@ -51,9 +51,39 @@ export async function postParticipant (req, res) {
             time: dayjs().format("HH:mm:ss") 
         })
 
-        res.sendStatus(201);
+        res.status(201).send();
     } catch (err) {
-        console.log(err)
+        console.error(err);
         res.status(500).send(err);
+    }
+};
+
+setInterval(removeOfflineParticipants, UPDATE_PATICIPANTS_TIME);
+
+async function removeOfflineParticipants() {
+    try {
+        const db = getDb();
+        const collectionParticipants = db.collection("participants");
+        const collectionMessages = db.collection("messages");
+        const participants = await collectionParticipants.find().toArray();
+
+        const time = Date.now();
+
+        for (let i = 0 ; i < participants.length ; i ++) {
+            const participant = participants[i];
+    
+            if (time - participant.lastStatus > 10000) {
+                collectionParticipants.deleteOne( { name: participant.name } );
+                collectionMessages.insertOne({ 
+                    from: participant.name, 
+                    to: 'Todos', 
+                    text: 'sai da sala...', 
+                    type: 'status', 
+                    time: dayjs().format("HH:mm:ss") 
+                });
+            }
+        }
+    } catch (err) {
+        console.error(err);
     }
 }
