@@ -6,6 +6,7 @@ export async function postStatus(req, res) {
     try {
         const db = getDb();
         const participantsCollection = db.collection("participants");
+        
         const sameNameParticipant = await participantsCollection.findOne({ name: user });
 
         if (!sameNameParticipant) {

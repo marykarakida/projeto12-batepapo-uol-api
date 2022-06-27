@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 
 import { getDb } from "../db/db.js";
 
+import { stripHTMLFromParticipant } from "../services/sanitization.js";
 import { validateParticipant } from "../services/validation.js";
 
 const UPDATE_PATICIPANTS_TIME = 15000;
@@ -20,7 +21,9 @@ export async function getParticipants(req, res) {
 };
 
 export async function postParticipant (req, res) {
-    const { name } = req.body;
+    const { name } = stripHTMLFromParticipant({ ...req.body });
+
+    const participant = { name };
 
     try {
         const db = getDb();
@@ -28,30 +31,33 @@ export async function postParticipant (req, res) {
         const messagesCollection = db.collection("messages");
 
         const sameNameParticipant = await participantsCollection.findOne({ name });
-        const participantValidation = validateParticipant({ name });
+        const participantValidation = validateParticipant(participant);
 
         if (sameNameParticipant) {
             res.status(409).send("User already exists");
             return;
-        }
+        };
         if (participantValidation.error) {
             res.status(422).send("Invalid format");
             return;
-        }
+        };
 
-        await participantsCollection.insertOne({
-            name,
+        const newParticipant = {
+            ...participant,
             lastStatus: Date.now() 
-        });
-        await messagesCollection.insertOne({ 
+        };
+        const newMessage = {
             from: name, 
             to: 'Todos', 
             text: 'entra na sala...', 
             type: 'status', 
             time: dayjs().format("HH:mm:ss") 
-        })
+        }
 
-        res.status(201).send();
+        await participantsCollection.insertOne(newParticipant);
+        await messagesCollection.insertOne(newMessage);
+
+        res.status(201).send(newParticipant);
     } catch (err) {
         console.error(err);
         res.status(500).send(err);

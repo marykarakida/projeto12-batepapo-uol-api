@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 
 import { getDb } from "../db/db.js";
 
+import { stripHTMLFromMessage } from "../services/sanitization.js";
 import { validateMessage } from "../services/validation.js";
 
 export async function getMessages(req, res) {
@@ -31,8 +32,7 @@ export async function getMessages(req, res) {
 };
 
 export async function postMessage(req, res) {
-    const { user } = req.headers;
-    const { to, text, type} = req.body;
+    const { user, to, text, type } = stripHTMLFromMessage({ ...req.body, ...req.headers});
 
     const newMessage = {
         from: user,
@@ -72,8 +72,7 @@ export async function postMessage(req, res) {
 
 export async function editMessage(req, res) {
     const { ID } = req.params;
-    const { user } = req.headers;
-    const { to, text, type } = req.body;
+    const { user, to, text, type } = stripHTMLFromMessage({ ...req.body, ...req.headers});
 
     const editedMessage = {
         from: user,
@@ -124,13 +123,13 @@ export async function deleteMessage(req, res) {
     try {
         const db = getDb();
         const messagesCollection = db.collection("messages");
+        
         const sameIdMessage = await messagesCollection.findOne({ _id: ObjectId(ID) });
 
         if (!sameIdMessage) {
             res.status(404).send();
             return;
         }
-
         if (sameIdMessage.from !== user) {
             res.status(401).send();
             return;
